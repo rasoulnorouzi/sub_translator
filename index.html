@@ -165,27 +165,9 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
   <!-- Settings -->
   <div class="settings-panel open" id="settingsPanel">
     <div class="settings-grid">
-      <div class="field">
-        <label for="provider">Provider</label>
-        <select id="provider">
-          <option value="deepseek">DeepSeek</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="google">Google (Gemini)</option>
-          <option value="custom">Custom (OpenAI-compatible)</option>
-        </select>
-      </div>
       <div class="field" id="fieldModel">
         <label for="model">Model</label>
         <select id="model"></select>
-      </div>
-      <div class="field" id="fieldCustomEndpoint" style="display:none">
-        <label for="customEndpoint">API Endpoint URL</label>
-        <input type="text" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions">
-      </div>
-      <div class="field" id="fieldCustomModel" style="display:none">
-        <label for="customModel">Model ID</label>
-        <input type="text" id="customModel" placeholder="model-name">
       </div>
       <div class="field">
         <label for="apiKey">API Key</label>
@@ -298,55 +280,6 @@ const PROVIDERS = {
     authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
     buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
     parseResponse: (data) => data.choices[0].message.content
-  },
-  openai: {
-    name: 'OpenAI',
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini'],
-    defaultModel: 'gpt-4.1-mini',
-    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
-    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
-    parseResponse: (data) => data.choices[0].message.content
-  },
-  anthropic: {
-    name: 'Anthropic',
-    endpoint: 'https://api.anthropic.com/v1/messages',
-    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-    defaultModel: 'claude-sonnet-4-6',
-    authHeader: (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01' }),
-    buildBody: (model, messages) => {
-      const systemMsg = messages.find(m => m.role === 'system');
-      const userMsgs = messages.filter(m => m.role === 'user');
-      return {
-        model, max_tokens: 4096, temperature: 0.3,
-        system: systemMsg ? [{ type: 'text', text: systemMsg.content }] : undefined,
-        messages: userMsgs.map(m => ({ role: 'user', content: m.content }))
-      };
-    },
-    parseResponse: (data) => data.content[0].text
-  },
-  google: {
-    name: 'Google Gemini',
-    endpoint: '',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
-    defaultModel: 'gemini-2.5-flash',
-    authHeader: (key) => ({}),
-    buildEndpoint: (model, key) =>
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-    buildBody: (model, messages) => {
-      const parts = messages.map(m => ({ text: m.content }));
-      return { contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } };
-    },
-    parseResponse: (data) => data.candidates[0].content.parts[0].text
-  },
-  custom: {
-    name: 'Custom',
-    endpoint: '',
-    models: [],
-    defaultModel: '',
-    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
-    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
-    parseResponse: (data) => data.choices[0].message.content
   }
 };
 
@@ -372,9 +305,7 @@ let state = {
     targetLang: 'fa',
     batchSize: 10,
     contextLines: 3,
-    saveKey: true,
-    customEndpoint: '',
-    customModel: ''
+    saveKey: true
   },
   abortController: null,
   isTranslating: false
@@ -423,32 +354,28 @@ function loadSettings() {
       Object.assign(state.settings, saved);
     }
   } catch (e) { /* ignore */ }
+  state.settings.provider = 'deepseek';
 }
 
 function saveSettings() {
   try {
-    const toSave = { ...state.settings };
+    const { provider, customEndpoint, customModel, ...toSave } = state.settings;
     if (!toSave.saveKey) toSave.apiKey = '';
     localStorage.setItem('sub_translator_settings', JSON.stringify(toSave));
   } catch (e) { /* ignore */ }
 }
 
 function applySettingsToUI() {
-  document.getElementById('provider').value = state.settings.provider;
   document.getElementById('apiKey').value = state.settings.apiKey;
   document.getElementById('sourceLang').value = state.settings.sourceLang;
   document.getElementById('targetLang').value = state.settings.targetLang;
   document.getElementById('batchSize').value = state.settings.batchSize;
   document.getElementById('contextLines').value = state.settings.contextLines;
   document.getElementById('saveKey').checked = state.settings.saveKey;
-  document.getElementById('customEndpoint').value = state.settings.customEndpoint || '';
-  document.getElementById('customModel').value = state.settings.customModel || '';
   updateModelSelect();
-  updateCustomFields();
 }
 
 function readSettingsFromUI() {
-  state.settings.provider = document.getElementById('provider').value;
   state.settings.model = document.getElementById('model').value;
   state.settings.apiKey = document.getElementById('apiKey').value;
   state.settings.sourceLang = document.getElementById('sourceLang').value;
@@ -456,20 +383,17 @@ function readSettingsFromUI() {
   state.settings.batchSize = parseInt(document.getElementById('batchSize').value, 10) || 10;
   state.settings.contextLines = parseInt(document.getElementById('contextLines').value, 10) || 0;
   state.settings.saveKey = document.getElementById('saveKey').checked;
-  state.settings.customEndpoint = document.getElementById('customEndpoint').value;
-  state.settings.customModel = document.getElementById('customModel').value;
   saveSettings();
 }
 
 function updateModelSelect() {
-  const provider = state.settings.provider;
-  const provCfg = PROVIDERS[provider];
+  const provCfg = PROVIDERS['deepseek'];
   const sel = document.getElementById('model');
   sel.innerHTML = '';
-  const models = provider === 'custom' ? [state.settings.customModel || 'custom-model'] : provCfg.models;
+  const models = provCfg.models;
   const currentModel = state.settings.model;
   if (!models.includes(currentModel)) {
-    state.settings.model = provider === 'custom' ? (state.settings.customModel || '') : provCfg.defaultModel;
+    state.settings.model = provCfg.defaultModel;
   }
   models.forEach(m => {
     const opt = document.createElement('option');
@@ -478,13 +402,6 @@ function updateModelSelect() {
     sel.appendChild(opt);
   });
   saveSettings();
-}
-
-function updateCustomFields() {
-  const isCustom = state.settings.provider === 'custom';
-  document.getElementById('fieldCustomEndpoint').style.display = isCustom ? '' : 'none';
-  document.getElementById('fieldCustomModel').style.display = isCustom ? '' : 'none';
-  document.getElementById('fieldModel').style.display = isCustom ? 'none' : '';
 }
 
 // ─── Toast ──────────────────────────────────────────────────
@@ -565,22 +482,12 @@ function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
 // ─── API Translation ────────────────────────────────────────
 async function translateBatch(texts, allSubsFlat, batchStartIdx) {
   const settings = state.settings;
-  const provider = settings.provider;
-  const provCfg = PROVIDERS[provider];
+  const provCfg = PROVIDERS['deepseek'];
 
   if (!settings.apiKey) throw new Error('API key is required');
 
-  let endpoint = provCfg.endpoint;
-  if (provider === 'custom') {
-    endpoint = settings.customEndpoint;
-    if (!endpoint) throw new Error('Custom endpoint URL is required');
-  }
-  if (provider === 'google') {
-    endpoint = provCfg.buildEndpoint(settings.model, settings.apiKey);
-  }
-
-  const model = provider === 'custom' ? settings.customModel : settings.model;
-  if (!model && provider !== 'google') throw new Error('Model is required');
+  const model = settings.model;
+  if (!model) throw new Error('Model is required');
 
   const systemMsg = buildMoviePrompt(settings.sourceLang, settings.targetLang);
   const userMsg = buildUserMessage(texts, allSubsFlat, batchStartIdx, settings.contextLines);
@@ -590,19 +497,14 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx) {
     { role: 'user', content: userMsg }
   ];
 
-  let body;
-  if (provider === 'google') {
-    body = provCfg.buildBody(model, messages);
-  } else {
-    body = provCfg.buildBody(model, messages);
-  }
+  const body = provCfg.buildBody(model, messages);
 
   const headers = {
     'Content-Type': 'application/json',
     ...provCfg.authHeader(settings.apiKey)
   };
 
-  const resp = await fetch(endpoint, {
+  const resp = await fetch(provCfg.endpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -891,12 +793,6 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('settingsPanel').classList.toggle('open');
 });
 
-document.getElementById('provider').addEventListener('change', () => {
-  readSettingsFromUI();
-  updateModelSelect();
-  updateCustomFields();
-});
-
 document.getElementById('model').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('sourceLang').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('targetLang').addEventListener('change', () => {
@@ -907,8 +803,6 @@ document.getElementById('batchSize').addEventListener('change', () => readSettin
 document.getElementById('contextLines').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('saveKey').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('apiKey').addEventListener('change', () => readSettingsFromUI());
-document.getElementById('customEndpoint').addEventListener('change', () => readSettingsFromUI());
-document.getElementById('customModel').addEventListener('change', () => readSettingsFromUI());
 
 document.getElementById('btnTranslate').addEventListener('click', translateAllFiles);
 document.getElementById('btnStop').addEventListener('click', stopTranslation);
