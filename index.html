@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sub Translator — AI-Powered Subtitle Translation</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #222533;
+  --border: #2a2d3a;
+  --text: #e1e4ed;
+  --text2: #9ca3b4;
+  --accent: #6366f1;
+  --accent-hover: #5558e0;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+header h1 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.btn {
+  padding: 8px 16px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); cursor: pointer;
+  font-size: 0.85rem; font-family: var(--font); transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { background: #2e3142; border-color: #3d4055; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+main { max-width: 1300px; margin: 0 auto; padding: 16px 20px 40px; }
+.settings-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 12px; display: none;
+}
+.settings-panel.open { display: block; }
+.settings-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 0.75rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.field input, .field select {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); font-size: 0.85rem; font-family: var(--font);
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.checkbox-field { display: flex; align-items: center; gap: 8px; padding-top: 18px; }
+.checkbox-field input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
+.checkbox-field label { font-size: 0.8rem; color: var(--text); text-transform: none; letter-spacing: 0; }
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 32px; text-align: center; cursor: pointer; transition: all 0.15s;
+  margin-bottom: 12px; background: var(--surface);
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--surface2); }
+.upload-zone p { color: var(--text2); font-size: 0.9rem; }
+.upload-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.file-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; font-size: 0.8rem;
+}
+.file-tag .remove { cursor: pointer; color: var(--text2); font-weight: 700; }
+.file-tag .remove:hover { color: var(--red); }
+.file-tag .status { width: 6px; height: 6px; border-radius: 50%; }
+.file-tag .status.pending { background: var(--text2); }
+.file-tag .status.translating { background: var(--yellow); animation: pulse 0.8s infinite; }
+.file-tag .status.done { background: var(--green); }
+.file-tag .status.error { background: var(--red); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.progress-bar {
+  height: 4px; background: var(--surface2); border-radius: 2px; margin-bottom: 12px; overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%; background: var(--accent); border-radius: 2px;
+  transition: width 0.3s; width: 0%;
+}
+/* ─── Unified Preview Table ─── */
+.preview-wrapper {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 12px; overflow: hidden;
+}
+.preview-row {
+  display: grid; grid-template-columns: 44px 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+.preview-row:hover { background: var(--surface2); }
+.preview-header {
+  display: grid; grid-template-columns: 44px 1fr 1fr;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text2); background: var(--surface);
+  position: sticky; top: 0; z-index: 2;
+}
+.preview-header > * { padding: 0 10px; }
+.preview-header .ph-right { text-align: right; font-weight: 400; font-size: 0.72rem; text-transform: none; }
+.preview-scroll { max-height: 480px; overflow-y: auto; }
+.preview-row .idx {
+  color: var(--text2); font-size: 0.7rem; text-align: right;
+  padding: 8px 8px; font-variant-numeric: tabular-nums;
+}
+.preview-row .orig {
+  padding: 8px 10px; white-space: pre-wrap; word-break: break-word;
+  font-size: 0.82rem;
+}
+.preview-row .trans {
+  padding: 8px 10px; white-space: pre-wrap; word-break: break-word;
+  font-size: 0.82rem;
+}
+.preview-row .trans.translated { color: var(--green); }
+.preview-row .trans.pending { color: var(--text2); font-style: italic; }
+.file-sep {
+  display: grid; grid-template-columns: 1fr;
+  padding: 6px 14px; background: var(--surface2);
+  font-size: 0.7rem; color: var(--text2); font-weight: 600;
+  letter-spacing: 0.03em; border-bottom: 1px solid var(--border);
+}
+.export-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toast {
+  position: fixed; bottom: 20px; right: 20px; padding: 10px 18px;
+  border-radius: var(--radius); background: var(--surface2); border: 1px solid var(--border);
+  font-size: 0.85rem; z-index: 100; opacity: 0; transform: translateY(10px);
+  transition: all 0.25s;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { border-color: var(--green); }
+.toast.error { border-color: var(--red); }
+.empty-state { text-align: center; padding: 40px; color: var(--text2); }
+input[type="file"] { display: none; }
+footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75rem; border-top: 1px solid var(--border); }
+@media (max-width: 768px) {
+  .preview-header { grid-template-columns: 36px 1fr 1fr; }
+  .preview-table .idx { width: 36px; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span>Sub Translator</h1>
+  <button class="btn" id="btnSettings">&#9881; Settings</button>
+</header>
+
+<main>
+  <!-- Settings -->
+  <div class="settings-panel open" id="settingsPanel">
+    <div class="settings-grid">
+      <div class="field">
+        <label for="provider">Provider</label>
+        <select id="provider">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="google">Google (Gemini)</option>
+          <option value="custom">Custom (OpenAI-compatible)</option>
+        </select>
+      </div>
+      <div class="field" id="fieldModel">
+        <label for="model">Model</label>
+        <select id="model"></select>
+      </div>
+      <div class="field" id="fieldCustomEndpoint" style="display:none">
+        <label for="customEndpoint">API Endpoint URL</label>
+        <input type="text" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions">
+      </div>
+      <div class="field" id="fieldCustomModel" style="display:none">
+        <label for="customModel">Model ID</label>
+        <input type="text" id="customModel" placeholder="model-name">
+      </div>
+      <div class="field">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+      </div>
+      <div class="checkbox-field">
+        <input type="checkbox" id="saveKey" checked>
+        <label for="saveKey">Save API key for next visit</label>
+      </div>
+      <div class="field">
+        <label for="sourceLang">Source Language</label>
+        <select id="sourceLang">
+          <option value="auto">Auto-detect</option>
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ru">Russian</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="zh">Chinese</option>
+          <option value="ar">Arabic</option>
+          <option value="tr">Turkish</option>
+          <option value="hi">Hindi</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="targetLang">Target Language</label>
+        <select id="targetLang">
+          <option value="fa" selected>Persian (Farsi)</option>
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ru">Russian</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="zh">Chinese</option>
+          <option value="ar">Arabic</option>
+          <option value="tr">Turkish</option>
+          <option value="hi">Hindi</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="batchSize">Batch Size (subtitles per request)</label>
+        <input type="number" id="batchSize" value="10" min="1" max="50">
+      </div>
+      <div class="field">
+        <label for="contextLines">Context Lines (surrounding lines for context)</label>
+        <input type="number" id="contextLines" value="3" min="0" max="10">
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">&#128196;</div>
+    <p>Drop <strong>.srt</strong> subtitle files here or click to browse</p>
+    <p style="font-size:0.75rem;margin-top:4px">Supports multiple files</p>
+  </div>
+  <input type="file" id="fileInput" accept=".srt" multiple>
+
+  <div class="file-list" id="fileList"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn-primary" id="btnTranslate" disabled>Translate All</button>
+    <button class="btn" id="btnStop" style="display:none">Stop</button>
+    <span id="progressText" style="font-size:0.8rem;color:var(--text2)"></span>
+  </div>
+  <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+
+  <!-- Unified Preview -->
+  <div class="preview-wrapper">
+    <div class="preview-header">
+      <span>#</span>
+      <span>Original</span>
+      <span>Translated <span class="ph-right" id="transStats"></span></span>
+    </div>
+    <div class="preview-scroll" id="previewScroll">
+      <div id="previewBody">
+        <div class="empty-state">Upload subtitle files to begin</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="export-bar" id="exportBar" style="display:none">
+    <button class="btn btn-primary" id="btnExport">&#10515; Download Translated SRT</button>
+    <span style="font-size:0.8rem;color:var(--text2)" id="exportHint"></span>
+  </div>
+</main>
+
+<footer>Sub Translator &mdash; AI-powered subtitle translation. API keys stay in your browser.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Providers ──────────────────────────────────────────────
+const PROVIDERS = {
+  deepseek: {
+    name: 'DeepSeek',
+    endpoint: 'https://api.deepseek.com/v1/chat/completions',
+    models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    defaultModel: 'deepseek-v4-flash',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
+    parseResponse: (data) => data.choices[0].message.content
+  },
+  openai: {
+    name: 'OpenAI',
+    endpoint: 'https://api.openai.com/v1/chat/completions',
+    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini'],
+    defaultModel: 'gpt-4.1-mini',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
+    parseResponse: (data) => data.choices[0].message.content
+  },
+  anthropic: {
+    name: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    defaultModel: 'claude-sonnet-4-6',
+    authHeader: (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01' }),
+    buildBody: (model, messages) => {
+      const systemMsg = messages.find(m => m.role === 'system');
+      const userMsgs = messages.filter(m => m.role === 'user');
+      return {
+        model, max_tokens: 4096, temperature: 0.3,
+        system: systemMsg ? [{ type: 'text', text: systemMsg.content }] : undefined,
+        messages: userMsgs.map(m => ({ role: 'user', content: m.content }))
+      };
+    },
+    parseResponse: (data) => data.content[0].text
+  },
+  google: {
+    name: 'Google Gemini',
+    endpoint: '',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
+    defaultModel: 'gemini-2.5-flash',
+    authHeader: (key) => ({}),
+    buildEndpoint: (model, key) =>
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+    buildBody: (model, messages) => {
+      const parts = messages.map(m => ({ text: m.content }));
+      return { contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } };
+    },
+    parseResponse: (data) => data.candidates[0].content.parts[0].text
+  },
+  custom: {
+    name: 'Custom',
+    endpoint: '',
+    models: [],
+    defaultModel: '',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
+    parseResponse: (data) => data.choices[0].message.content
+  }
+};
+
+// ─── Language names & codes ─────────────────────────────────
+const LANG_CODES = {
+  auto:'auto', en:'En', es:'Es', fr:'Fr', de:'De', it:'It', pt:'Pt',
+  ru:'Ru', ja:'Ja', ko:'Ko', zh:'Zh', ar:'Ar', tr:'Tr', hi:'Hi', fa:'Fa'
+};
+const LANG_NAMES = {
+  auto:'Auto-detect', en:'English', es:'Spanish', fr:'French', de:'German',
+  it:'Italian', pt:'Portuguese', ru:'Russian', ja:'Japanese', ko:'Korean',
+  zh:'Chinese', ar:'Arabic', tr:'Turkish', hi:'Hindi', fa:'Persian'
+};
+
+// ─── App State ──────────────────────────────────────────────
+let state = {
+  files: [],
+  settings: {
+    provider: 'deepseek',
+    model: 'deepseek-v4-flash',
+    apiKey: '',
+    sourceLang: 'auto',
+    targetLang: 'fa',
+    batchSize: 10,
+    contextLines: 3,
+    saveKey: true,
+    customEndpoint: '',
+    customModel: ''
+  },
+  abortController: null,
+  isTranslating: false
+};
+
+// ─── SRT Parser ─────────────────────────────────────────────
+function parseSRT(text) {
+  const normalized = text.replace(/\r\n/g, '\n').trim();
+  const blocks = normalized.split(/\n\n+/);
+  const subtitles = [];
+
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (lines.length < 3) continue;
+
+    const index = parseInt(lines[0], 10);
+    if (isNaN(index)) continue;
+
+    const timeMatch = lines[1].match(/(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/);
+    if (!timeMatch) continue;
+
+    const text = lines.slice(2).join('\n').trim();
+    subtitles.push({
+      index: index,
+      start: timeMatch[1].replace(',', '.'),
+      end: timeMatch[2].replace(',', '.'),
+      text: text
+    });
+  }
+  return subtitles;
+}
+
+function serializeSRT(subtitles, translatedTexts) {
+  return subtitles.map((sub, i) => {
+    const text = translatedTexts && translatedTexts[i] !== undefined ? translatedTexts[i] : sub.text;
+    return `${sub.index}\n${sub.start.replace('.', ',')} --> ${sub.end.replace('.', ',')}\n${text}\n`;
+  }).join('\n');
+}
+
+// ─── Settings persistence ───────────────────────────────────
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('sub_translator_settings');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      Object.assign(state.settings, saved);
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function saveSettings() {
+  try {
+    const toSave = { ...state.settings };
+    if (!toSave.saveKey) toSave.apiKey = '';
+    localStorage.setItem('sub_translator_settings', JSON.stringify(toSave));
+  } catch (e) { /* ignore */ }
+}
+
+function applySettingsToUI() {
+  document.getElementById('provider').value = state.settings.provider;
+  document.getElementById('apiKey').value = state.settings.apiKey;
+  document.getElementById('sourceLang').value = state.settings.sourceLang;
+  document.getElementById('targetLang').value = state.settings.targetLang;
+  document.getElementById('batchSize').value = state.settings.batchSize;
+  document.getElementById('contextLines').value = state.settings.contextLines;
+  document.getElementById('saveKey').checked = state.settings.saveKey;
+  document.getElementById('customEndpoint').value = state.settings.customEndpoint || '';
+  document.getElementById('customModel').value = state.settings.customModel || '';
+  updateModelSelect();
+  updateCustomFields();
+}
+
+function readSettingsFromUI() {
+  state.settings.provider = document.getElementById('provider').value;
+  state.settings.model = document.getElementById('model').value;
+  state.settings.apiKey = document.getElementById('apiKey').value;
+  state.settings.sourceLang = document.getElementById('sourceLang').value;
+  state.settings.targetLang = document.getElementById('targetLang').value;
+  state.settings.batchSize = parseInt(document.getElementById('batchSize').value, 10) || 10;
+  state.settings.contextLines = parseInt(document.getElementById('contextLines').value, 10) || 0;
+  state.settings.saveKey = document.getElementById('saveKey').checked;
+  state.settings.customEndpoint = document.getElementById('customEndpoint').value;
+  state.settings.customModel = document.getElementById('customModel').value;
+  saveSettings();
+}
+
+function updateModelSelect() {
+  const provider = state.settings.provider;
+  const provCfg = PROVIDERS[provider];
+  const sel = document.getElementById('model');
+  sel.innerHTML = '';
+  const models = provider === 'custom' ? [state.settings.customModel || 'custom-model'] : provCfg.models;
+  const currentModel = state.settings.model;
+  if (!models.includes(currentModel)) {
+    state.settings.model = provider === 'custom' ? (state.settings.customModel || '') : provCfg.defaultModel;
+  }
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    if (m === state.settings.model) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  saveSettings();
+}
+
+function updateCustomFields() {
+  const isCustom = state.settings.provider === 'custom';
+  document.getElementById('fieldCustomEndpoint').style.display = isCustom ? '' : 'none';
+  document.getElementById('fieldCustomModel').style.display = isCustom ? '' : 'none';
+  document.getElementById('fieldModel').style.display = isCustom ? 'none' : '';
+}
+
+// ─── Toast ──────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type || '') + ' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2500);
+}
+
+// ─── Translation Prompt ─────────────────────────────────────
+function buildMoviePrompt(sourceLang, targetLang) {
+  const srcName = LANG_NAMES[sourceLang] || sourceLang;
+  const tgtName = LANG_NAMES[targetLang] || targetLang;
+  return `You are an expert subtitle translator for movies, TV series, and documentaries. Translate subtitles from ${srcName} to ${tgtName}.
+
+CRITICAL RULES:
+
+1. CONTEXT IS EVERYTHING: You will receive surrounding "context" lines before and after the lines to translate. Use these to understand the full scene — who is speaking, what just happened, what's about to happen, the emotional dynamics between characters, and the narrative arc. Translations must be consistent with this context. Never translate a line in isolation when you have context available.
+
+2. PRESERVE TONE & CHARACTER VOICE: Maintain the emotional register, speaking style, and personality of each character across all lines. If someone speaks formally in the context lines, they must stay formal in the translated lines. If a character is sarcastic, angry, or tender — carry that through.
+
+3. CONCISENESS: Subtitles must be short enough to read at speaking speed. Aim for natural, idiomatic translations — never word-for-word literals. Condense long phrases without losing core meaning.
+
+4. CULTURAL ADAPTATION: Translate idioms and cultural references naturally. If a joke or reference falls flat in the target language, find an equivalent that lands. Prioritize meaning and emotional impact over literal accuracy.
+
+5. CONSISTENCY: Use the same target-language term for recurring names, places, and concepts throughout. If context lines use a particular translation choice, match it.
+
+6. NO ADDITIONS: Never add translator notes, explanations, bracketed commentary like [unclear] or (laughter). No markdown, no quotes, no HTML. Just the translated text.
+
+7. OUTPUT FORMAT: Output ONLY the numbered translations, one per line, matching the "LINES TO TRANSLATE" numbering exactly. Do not translate or re-output the context lines.
+
+8. MATCH COUNT: Output exactly the same number of translated lines as the "LINES TO TRANSLATE" section contains.`;
+}
+
+// ─── Build context-rich user message ────────────────────────
+function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
+  const sections = [];
+
+  // Context BEFORE
+  if (contextCount > 0 && batchStartIdx > 0) {
+    const ctxStart = Math.max(0, batchStartIdx - contextCount);
+    const ctxLines = allSubs.slice(ctxStart, batchStartIdx);
+    if (ctxLines.length > 0) {
+      sections.push('CONTEXT BEFORE (for understanding — do NOT translate these):');
+      ctxLines.forEach((s, i) => {
+        sections.push(`  [context] ${s.text}`);
+      });
+      sections.push('');
+    }
+  }
+
+  // Lines TO translate
+  sections.push(`LINES TO TRANSLATE (${texts.length} lines):`);
+  texts.forEach((t, i) => {
+    sections.push(`${i + 1}. ${t}`);
+  });
+
+  // Context AFTER
+  if (contextCount > 0) {
+    const afterStart = batchStartIdx + texts.length;
+    const afterEnd = Math.min(allSubs.length, afterStart + contextCount);
+    const ctxLines = allSubs.slice(afterStart, afterEnd);
+    if (ctxLines.length > 0) {
+      sections.push('');
+      sections.push('CONTEXT AFTER (for understanding — do NOT translate these):');
+      ctxLines.forEach(s => {
+        sections.push(`  [context] ${s.text}`);
+      });
+    }
+  }
+
+  return sections.join('\n');
+}
+
+// ─── API Translation ────────────────────────────────────────
+async function translateBatch(texts, allSubsFlat, batchStartIdx) {
+  const settings = state.settings;
+  const provider = settings.provider;
+  const provCfg = PROVIDERS[provider];
+
+  if (!settings.apiKey) throw new Error('API key is required');
+
+  let endpoint = provCfg.endpoint;
+  if (provider === 'custom') {
+    endpoint = settings.customEndpoint;
+    if (!endpoint) throw new Error('Custom endpoint URL is required');
+  }
+  if (provider === 'google') {
+    endpoint = provCfg.buildEndpoint(settings.model, settings.apiKey);
+  }
+
+  const model = provider === 'custom' ? settings.customModel : settings.model;
+  if (!model && provider !== 'google') throw new Error('Model is required');
+
+  const systemMsg = buildMoviePrompt(settings.sourceLang, settings.targetLang);
+  const userMsg = buildUserMessage(texts, allSubsFlat, batchStartIdx, settings.contextLines);
+
+  const messages = [
+    { role: 'system', content: systemMsg },
+    { role: 'user', content: userMsg }
+  ];
+
+  let body;
+  if (provider === 'google') {
+    body = provCfg.buildBody(model, messages);
+  } else {
+    body = provCfg.buildBody(model, messages);
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...provCfg.authHeader(settings.apiKey)
+  };
+
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: state.abortController ? state.abortController.signal : undefined
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    let errMsg;
+    try {
+      const errJson = JSON.parse(errText);
+      errMsg = errJson.error?.message || errJson.message || errText;
+    } catch {
+      errMsg = errText;
+    }
+    throw new Error(`API error ${resp.status}: ${errMsg}`);
+  }
+
+  const data = await resp.json();
+  const resultText = provCfg.parseResponse(data);
+
+  // Parse numbered output
+  const lines = resultText.trim().split('\n').filter(l => l.trim());
+  const translations = [];
+  for (const line of lines) {
+    const match = line.match(/^\d+[\.\)]\s*(.+)/);
+    if (match) {
+      translations.push(match[1].trim());
+    } else {
+      translations.push(line.trim());
+    }
+  }
+
+  // Ensure correct count
+  while (translations.length < texts.length) translations.push('');
+  return translations.slice(0, texts.length);
+}
+
+// ─── Translation Engine ─────────────────────────────────────
+async function translateAllFiles() {
+  if (state.isTranslating) return;
+  if (!state.settings.apiKey) {
+    showToast('Please enter your API key in settings', 'error');
+    return;
+  }
+
+  // Build flat list of ALL subtitles (for context lookups) + the to-translate queue
+  const allSubsFlat = [];
+  const toTranslate = [];
+  for (const file of state.files) {
+    for (let i = 0; i < file.subtitles.length; i++) {
+      const entry = { file, subIndex: i, text: file.subtitles[i].text };
+      allSubsFlat.push(entry);
+      toTranslate.push(entry);
+    }
+  }
+
+  if (toTranslate.length === 0) {
+    showToast('No subtitles to translate', 'error');
+    return;
+  }
+
+  state.isTranslating = true;
+  state.abortController = new AbortController();
+  document.getElementById('btnTranslate').disabled = true;
+  document.getElementById('btnStop').style.display = '';
+
+  const batchSize = state.settings.batchSize;
+  const batches = [];
+  for (let i = 0; i < toTranslate.length; i += batchSize) {
+    batches.push({ items: toTranslate.slice(i, i + batchSize), startIdx: i });
+  }
+
+  let completed = 0;
+  const total = batches.length;
+
+  try {
+    for (let b = 0; b < batches.length; b++) {
+      const { items, startIdx } = batches[b];
+      const texts = items.map(it => it.text);
+
+      const doneSubs = completed * batchSize;
+      document.getElementById('progressText').textContent =
+        `Translating batch ${b + 1}/${total} (${doneSubs}/${toTranslate.length} done)...`;
+      document.getElementById('progressFill').style.width = `${Math.round((b / total) * 100)}%`;
+
+      const translations = await translateBatch(texts, allSubsFlat, startIdx);
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item.file.translated) item.file.translated = [];
+        item.file.translated[item.subIndex] = translations[i] || '';
+      }
+
+      completed++;
+      document.getElementById('progressFill').style.width = `${Math.round((completed / total) * 100)}%`;
+      renderPreview();
+      updateFileStatuses();
+    }
+
+    document.getElementById('progressText').textContent =
+      `Done — ${toTranslate.length} subtitles translated`;
+    document.getElementById('exportBar').style.display = 'flex';
+    updateExportHint();
+    showToast('Translation complete!', 'success');
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      document.getElementById('progressText').textContent = 'Translation stopped';
+      showToast('Translation stopped', '');
+    } else {
+      document.getElementById('progressText').textContent = `Error: ${err.message}`;
+      showToast(err.message, 'error');
+    }
+  } finally {
+    state.isTranslating = false;
+    state.abortController = null;
+    document.getElementById('btnTranslate').disabled = false;
+    document.getElementById('btnStop').style.display = 'none';
+    updateFileStatuses();
+  }
+}
+
+function stopTranslation() {
+  if (state.abortController) {
+    state.abortController.abort();
+  }
+}
+
+// ─── File Handling ──────────────────────────────────────────
+function addFiles(fileList) {
+  for (const file of fileList) {
+    if (!file.name.toLowerCase().endsWith('.srt')) continue;
+    if (state.files.some(f => f.name === file.name)) continue;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const subtitles = parseSRT(e.target.result);
+      state.files.push({
+        name: file.name,
+        subtitles: subtitles,
+        translated: []
+      });
+      renderFileList();
+      renderPreview();
+      updateButtons();
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+}
+
+function removeFile(index) {
+  state.files.splice(index, 1);
+  renderFileList();
+  renderPreview();
+  updateButtons();
+  if (state.files.length === 0) {
+    document.getElementById('exportBar').style.display = 'none';
+  }
+}
+
+function updateFileStatuses() {
+  const tags = document.querySelectorAll('.file-tag .status');
+  state.files.forEach((file, i) => {
+    const el = tags[i];
+    if (!el) return;
+    el.className = 'status';
+    if (file.translated.length > 0) {
+      const allDone = file.subtitles.every((_, j) => file.translated[j]);
+      el.classList.add(allDone ? 'done' : 'translating');
+    } else if (state.isTranslating) {
+      el.classList.add('pending');
+    }
+  });
+}
+
+function updateButtons() {
+  const hasFiles = state.files.length > 0;
+  document.getElementById('btnTranslate').disabled = !hasFiles || state.isTranslating;
+}
+
+function updateExportHint() {
+  const code = LANG_CODES[state.settings.targetLang] || state.settings.targetLang;
+  const hint = state.files.map(f => `${code}_${f.name}`).join(', ');
+  document.getElementById('exportHint').textContent = `Files: ${hint}`;
+}
+
+// ─── UI Rendering ───────────────────────────────────────────
+function renderFileList() {
+  const container = document.getElementById('fileList');
+  container.innerHTML = state.files.map((f, i) => `
+    <div class="file-tag">
+      <span class="status pending"></span>
+      <span>${f.name}</span>
+      <span style="color:var(--text2);font-size:0.7rem">${f.subtitles.length} subs</span>
+      <span class="remove" data-index="${i}">&times;</span>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.remove').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeFile(parseInt(el.dataset.index));
+    });
+  });
+}
+
+function renderPreview() {
+  const body = document.getElementById('previewBody');
+  const transStats = document.getElementById('transStats');
+
+  if (state.files.length === 0) {
+    body.innerHTML = '<div class="empty-state">Upload subtitle files to begin</div>';
+    transStats.textContent = '';
+    return;
+  }
+
+  const rows = [];
+  for (const file of state.files) {
+    if (state.files.length > 1) {
+      rows.push({ type: 'sep', label: file.name + ' (' + file.subtitles.length + ' subs)' });
+    }
+    for (let i = 0; i < file.subtitles.length; i++) {
+      rows.push({
+        type: 'sub',
+        index: file.subtitles[i].index,
+        orig: file.subtitles[i].text,
+        trans: file.translated[i] || null
+      });
+    }
+  }
+
+  let transDone = 0;
+  let transTotal = 0;
+  for (const file of state.files) {
+    transTotal += file.subtitles.length;
+    transDone += file.translated.filter(t => t).length;
+  }
+  transStats.textContent = transDone > 0 ? `${transDone}/${transTotal} translated` : `${transTotal} subs`;
+
+  body.innerHTML = rows.map(r => {
+    if (r.type === 'sep') {
+      return `<div class="file-sep">&#128196; ${escapeHTML(r.label)}</div>`;
+    }
+    const transClass = r.trans ? 'translated' : 'pending';
+    const transText = r.trans || '(pending)';
+    return `<div class="preview-row">
+      <div class="idx">${r.index}</div>
+      <div class="orig">${escapeHTML(r.orig)}</div>
+      <div class="trans ${transClass}">${escapeHTML(transText)}</div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ─── Export ─────────────────────────────────────────────────
+function exportFiles() {
+  const code = LANG_CODES[state.settings.targetLang] || state.settings.targetLang;
+
+  for (const file of state.files) {
+    const translatedTexts = file.subtitles.map((_, i) => file.translated[i] || file.subtitles[i].text);
+    const srtContent = serializeSRT(file.subtitles, translatedTexts);
+    const fileName = `${code}_${file.name}`;
+    downloadBlob(srtContent, fileName, 'text/plain;charset=utf-8');
+  }
+}
+
+function downloadBlob(content, fileName, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Event Listeners ────────────────────────────────────────
+document.getElementById('btnSettings').addEventListener('click', () => {
+  document.getElementById('settingsPanel').classList.toggle('open');
+});
+
+document.getElementById('provider').addEventListener('change', () => {
+  readSettingsFromUI();
+  updateModelSelect();
+  updateCustomFields();
+});
+
+document.getElementById('model').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('sourceLang').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('targetLang').addEventListener('change', () => {
+  readSettingsFromUI();
+  updateExportHint();
+});
+document.getElementById('batchSize').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('contextLines').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('saveKey').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('apiKey').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('customEndpoint').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('customModel').addEventListener('change', () => readSettingsFromUI());
+
+document.getElementById('btnTranslate').addEventListener('click', translateAllFiles);
+document.getElementById('btnStop').addEventListener('click', stopTranslation);
+document.getElementById('btnExport').addEventListener('click', exportFiles);
+
+// Upload zone
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('drag-over');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) {
+    addFiles(e.dataTransfer.files);
+    fileInput.value = '';
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) {
+    addFiles(fileInput.files);
+    fileInput.value = '';
+  }
+});
+
+// ─── Init ───────────────────────────────────────────────────
+loadSettings();
+applySettingsToUI();
+updateExportHint();
+</script>
+</body>
+</html>
