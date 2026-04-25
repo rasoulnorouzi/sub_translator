@@ -232,7 +232,7 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
       <div class="settings-grid">
         <div class="field">
           <label for="modelOpenrouter">Model</label>
-          <input type="text" id="modelOpenrouter" placeholder="google/gemma-4-31b-it:free">
+          <input type="text" id="modelOpenrouter" placeholder="openai/gpt-oss-120b:free">
         </div>
         <div class="field">
           <label for="apiKeyOpenrouter">API Key</label>
@@ -283,7 +283,7 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
       </div>
       <div class="field">
         <label for="batchSize">Batch Size (subtitles per request)</label>
-        <input type="number" id="batchSize" value="10" min="1" max="50">
+        <input type="number" id="batchSize" value="50" min="1" max="100">
       </div>
       <div class="field">
         <label for="contextLines">Context Lines (surrounding lines for context)</label>
@@ -377,7 +377,7 @@ const PROVIDERS = {
     name: 'OpenRouter',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     models: [],
-    defaultModel: 'google/gemma-4-31b-it:free',
+    defaultModel: 'openai/gpt-oss-120b:free',
     defaultDelay: 15000,
     rateInfo: 'Free: 20 RPM, 50 req/day | Use delay + watch daily limit',
     authHeader: (key) => ({
@@ -387,8 +387,7 @@ const PROVIDERS = {
     }),
     buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
     parseResponse: (data) => data.choices[0].message.content
-  }
-};
+  },};
 
 // ─── Language names & codes ─────────────────────────────────
 const LANG_CODES = {
@@ -409,7 +408,7 @@ let state = {
     providerModels: {
       deepseek: 'deepseek-v4-flash',
       google: 'gemini-3-flash-preview',
-      openrouter: 'google/gemma-4-31b-it:free'
+      openrouter: 'openai/gpt-oss-120b:free'
     },
     providerKeys: {
       deepseek: '',
@@ -473,7 +472,7 @@ function loadSettings() {
         delete saved.apiKey;
       }
       if (saved.model && !saved.providerModels) {
-        saved.providerModels = { deepseek: saved.model, google: 'gemini-3-flash-preview', openrouter: 'google/gemma-4-31b-it:free' };
+        saved.providerModels = { deepseek: saved.model, google: 'gemini-3-flash-preview', openrouter: 'openai/gpt-oss-120b:free' };
         delete saved.model;
       }
       // Deep merge to preserve nested objects
@@ -527,7 +526,7 @@ function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function readSettingsFromUI() {
   const p = state.settings.provider;
   if (p === 'openrouter') {
-    state.settings.providerModels[p] = document.getElementById('modelOpenrouter').value.trim() || 'google/gemma-4-31b-it:free';
+    state.settings.providerModels[p] = document.getElementById('modelOpenrouter').value.trim() || 'openai/gpt-oss-120b:free';
   } else {
     const sel = document.getElementById('model' + capitalize(p));
     if (sel) state.settings.providerModels[p] = sel.value;
@@ -651,7 +650,6 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx, retryCount = 0)
   if (provider === 'google') {
     endpoint = provCfg.buildEndpoint(model, apiKey);
   }
-
   if (!model && provider !== 'google') throw new Error('Model is required');
 
   const systemMsg = buildMoviePrompt(settings.sourceLang, settings.targetLang);
