@@ -147,6 +147,27 @@ main { max-width: 1300px; margin: 0 auto; padding: 16px 20px 40px; }
 .empty-state { text-align: center; padding: 40px; color: var(--text2); }
 input[type="file"] { display: none; }
 footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75rem; border-top: 1px solid var(--border); }
+/* ─── Provider Tabs ─── */
+.provider-tabs {
+  display: flex; gap: 0; margin-bottom: 14px;
+  border-bottom: 2px solid var(--border);
+}
+.provider-tab {
+  padding: 10px 18px; border: none; background: transparent;
+  color: var(--text2); cursor: pointer; font-size: 0.85rem;
+  font-family: var(--font); font-weight: 600;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.provider-tab:hover { color: var(--text); }
+.provider-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.provider-panel { display: none; }
+.provider-panel.active { display: block; }
+.api-key-row { display: flex; gap: 8px; align-items: flex-end; }
+.api-key-row .field { flex: 1; }
+.btn-sm {
+  padding: 7px 12px; font-size: 0.78rem;
+}
 @media (max-width: 768px) {
   .preview-header { grid-template-columns: 36px 1fr 1fr; }
   .preview-table .idx { width: 36px; }
@@ -164,37 +185,64 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
 <main>
   <!-- Settings -->
   <div class="settings-panel open" id="settingsPanel">
-    <div class="settings-grid">
-      <div class="field">
-        <label for="provider">Provider</label>
-        <select id="provider">
-          <option value="deepseek">DeepSeek</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="google">Google (Gemini)</option>
-          <option value="custom">Custom (OpenAI-compatible)</option>
-        </select>
+    <!-- Provider Tabs -->
+    <div class="provider-tabs" id="providerTabs">
+      <button class="provider-tab active" data-provider="deepseek">DeepSeek</button>
+      <button class="provider-tab" data-provider="google">Google Gemini</button>
+      <button class="provider-tab" data-provider="openrouter">OpenRouter</button>
+    </div>
+
+    <!-- DeepSeek Panel -->
+    <div class="provider-panel active" id="panelDeepseek">
+      <div class="settings-grid">
+        <div class="field">
+          <label for="modelDeepseek">Model</label>
+          <select id="modelDeepseek">
+            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="apiKeyDeepseek">API Key</label>
+          <input type="password" id="apiKeyDeepseek" placeholder="sk-...">
+        </div>
       </div>
-      <div class="field" id="fieldModel">
-        <label for="model">Model</label>
-        <select id="model"></select>
+    </div>
+
+    <!-- Google Gemini Panel -->
+    <div class="provider-panel" id="panelGoogle">
+      <div class="settings-grid">
+        <div class="field">
+          <label for="modelGoogle">Model</label>
+          <select id="modelGoogle">
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+            <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="apiKeyGoogle">API Key</label>
+          <input type="password" id="apiKeyGoogle" placeholder="AIza...">
+        </div>
       </div>
-      <div class="field" id="fieldCustomEndpoint" style="display:none">
-        <label for="customEndpoint">API Endpoint URL</label>
-        <input type="text" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions">
+    </div>
+
+    <!-- OpenRouter Panel -->
+    <div class="provider-panel" id="panelOpenrouter">
+      <div class="settings-grid">
+        <div class="field">
+          <label for="modelOpenrouter">Model</label>
+          <input type="text" id="modelOpenrouter" placeholder="google/gemma-4-31b-it:free">
+        </div>
+        <div class="field">
+          <label for="apiKeyOpenrouter">API Key</label>
+          <input type="password" id="apiKeyOpenrouter" placeholder="sk-or-v1-...">
+        </div>
       </div>
-      <div class="field" id="fieldCustomModel" style="display:none">
-        <label for="customModel">Model ID</label>
-        <input type="text" id="customModel" placeholder="model-name">
-      </div>
-      <div class="field">
-        <label for="apiKey">API Key</label>
-        <input type="password" id="apiKey" placeholder="sk-...">
-      </div>
-      <div class="checkbox-field">
-        <input type="checkbox" id="saveKey" checked>
-        <label for="saveKey">Save API key for next visit</label>
-      </div>
+    </div>
+
+    <!-- Common Settings -->
+    <div class="settings-grid" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border)">
       <div class="field">
         <label for="sourceLang">Source Language</label>
         <select id="sourceLang">
@@ -240,6 +288,15 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
       <div class="field">
         <label for="contextLines">Context Lines (surrounding lines for context)</label>
         <input type="number" id="contextLines" value="3" min="0" max="10">
+      </div>
+      <div class="field">
+        <label for="batchDelay">Delay Between Batches (ms) — 0 = no delay</label>
+        <input type="number" id="batchDelay" value="0" min="0" max="60000" step="500">
+        <span style="font-size:0.7rem;color:var(--text2);margin-top:2px" id="rateInfo"></span>
+      </div>
+      <div class="checkbox-field">
+        <input type="checkbox" id="saveKey" checked>
+        <label for="saveKey">Save API keys for next visit</label>
       </div>
     </div>
   </div>
@@ -294,41 +351,19 @@ const PROVIDERS = {
     endpoint: 'https://api.deepseek.com/v1/chat/completions',
     models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
     defaultModel: 'deepseek-v4-flash',
+    defaultDelay: 0,
+    rateInfo: 'Paid API — no strict rate limits',
     authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
     buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
     parseResponse: (data) => data.choices[0].message.content
-  },
-  openai: {
-    name: 'OpenAI',
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini'],
-    defaultModel: 'gpt-4.1-mini',
-    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
-    buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
-    parseResponse: (data) => data.choices[0].message.content
-  },
-  anthropic: {
-    name: 'Anthropic',
-    endpoint: 'https://api.anthropic.com/v1/messages',
-    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-    defaultModel: 'claude-sonnet-4-6',
-    authHeader: (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01' }),
-    buildBody: (model, messages) => {
-      const systemMsg = messages.find(m => m.role === 'system');
-      const userMsgs = messages.filter(m => m.role === 'user');
-      return {
-        model, max_tokens: 4096, temperature: 0.3,
-        system: systemMsg ? [{ type: 'text', text: systemMsg.content }] : undefined,
-        messages: userMsgs.map(m => ({ role: 'user', content: m.content }))
-      };
-    },
-    parseResponse: (data) => data.content[0].text
   },
   google: {
     name: 'Google Gemini',
     endpoint: '',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
-    defaultModel: 'gemini-2.5-flash',
+    models: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview'],
+    defaultModel: 'gemini-3-flash-preview',
+    defaultDelay: 15000,
+    rateInfo: 'Free: ~5 RPM | Set delay >= 12s to stay safe',
     authHeader: (key) => ({}),
     buildEndpoint: (model, key) =>
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -338,12 +373,18 @@ const PROVIDERS = {
     },
     parseResponse: (data) => data.candidates[0].content.parts[0].text
   },
-  custom: {
-    name: 'Custom',
-    endpoint: '',
+  openrouter: {
+    name: 'OpenRouter',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     models: [],
-    defaultModel: '',
-    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    defaultModel: 'google/gemma-4-31b-it:free',
+    defaultDelay: 15000,
+    rateInfo: 'Free: 20 RPM, 50 req/day | Use delay + watch daily limit',
+    authHeader: (key) => ({
+      'Authorization': `Bearer ${key}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Sub Translator'
+    }),
     buildBody: (model, messages) => ({ model, messages, temperature: 0.3, max_tokens: 4096 }),
     parseResponse: (data) => data.choices[0].message.content
   }
@@ -365,15 +406,22 @@ let state = {
   files: [],
   settings: {
     provider: 'deepseek',
-    model: 'deepseek-v4-flash',
-    apiKey: '',
+    providerModels: {
+      deepseek: 'deepseek-v4-flash',
+      google: 'gemini-3-flash-preview',
+      openrouter: 'google/gemma-4-31b-it:free'
+    },
+    providerKeys: {
+      deepseek: '',
+      google: '',
+      openrouter: ''
+    },
     sourceLang: 'auto',
     targetLang: 'fa',
     batchSize: 10,
     contextLines: 3,
-    saveKey: true,
-    customEndpoint: '',
-    customModel: ''
+    batchDelay: 0,
+    saveKey: true
   },
   abortController: null,
   isTranslating: false
@@ -419,6 +467,20 @@ function loadSettings() {
     const raw = localStorage.getItem('sub_translator_settings');
     if (raw) {
       const saved = JSON.parse(raw);
+      // Migrate old single-apiKey format
+      if (saved.apiKey && !saved.providerKeys) {
+        saved.providerKeys = { deepseek: saved.apiKey, google: '', openrouter: '' };
+        delete saved.apiKey;
+      }
+      if (saved.model && !saved.providerModels) {
+        saved.providerModels = { deepseek: saved.model, google: 'gemini-3-flash-preview', openrouter: 'google/gemma-4-31b-it:free' };
+        delete saved.model;
+      }
+      // Deep merge to preserve nested objects
+      if (saved.providerKeys) Object.assign(state.settings.providerKeys, saved.providerKeys);
+      if (saved.providerModels) Object.assign(state.settings.providerModels, saved.providerModels);
+      delete saved.providerKeys;
+      delete saved.providerModels;
       Object.assign(state.settings, saved);
     }
   } catch (e) { /* ignore */ }
@@ -427,63 +489,76 @@ function loadSettings() {
 function saveSettings() {
   try {
     const toSave = { ...state.settings };
-    if (!toSave.saveKey) toSave.apiKey = '';
+    if (!toSave.saveKey) {
+      toSave.providerKeys = { deepseek: '', google: '', openrouter: '' };
+    }
     localStorage.setItem('sub_translator_settings', JSON.stringify(toSave));
   } catch (e) { /* ignore */ }
 }
 
 function applySettingsToUI() {
-  document.getElementById('provider').value = state.settings.provider;
-  document.getElementById('apiKey').value = state.settings.apiKey;
+  const p = state.settings.provider;
+  // Activate correct tab
+  document.querySelectorAll('.provider-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.provider === p);
+  });
+  document.querySelectorAll('.provider-panel').forEach(pan => {
+    pan.classList.toggle('active', pan.id === 'panel' + capitalize(p));
+  });
+  // Provider-specific fields
+  if (p === 'openrouter') {
+    document.getElementById('modelOpenrouter').value = state.settings.providerModels.openrouter || '';
+  } else {
+    const sel = document.getElementById('model' + capitalize(p));
+    if (sel) sel.value = state.settings.providerModels[p] || '';
+  }
+  document.getElementById('apiKey' + capitalize(p)).value = state.settings.providerKeys[p] || '';
+  // Common fields
   document.getElementById('sourceLang').value = state.settings.sourceLang;
   document.getElementById('targetLang').value = state.settings.targetLang;
   document.getElementById('batchSize').value = state.settings.batchSize;
   document.getElementById('contextLines').value = state.settings.contextLines;
+  document.getElementById('batchDelay').value = state.settings.batchDelay;
   document.getElementById('saveKey').checked = state.settings.saveKey;
-  document.getElementById('customEndpoint').value = state.settings.customEndpoint || '';
-  document.getElementById('customModel').value = state.settings.customModel || '';
-  updateModelSelect();
-  updateCustomFields();
 }
 
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
 function readSettingsFromUI() {
-  state.settings.provider = document.getElementById('provider').value;
-  state.settings.model = document.getElementById('model').value;
-  state.settings.apiKey = document.getElementById('apiKey').value;
+  const p = state.settings.provider;
+  if (p === 'openrouter') {
+    state.settings.providerModels[p] = document.getElementById('modelOpenrouter').value.trim() || 'google/gemma-4-31b-it:free';
+  } else {
+    const sel = document.getElementById('model' + capitalize(p));
+    if (sel) state.settings.providerModels[p] = sel.value;
+  }
+  const keyEl = document.getElementById('apiKey' + capitalize(p));
+  if (keyEl) state.settings.providerKeys[p] = keyEl.value;
   state.settings.sourceLang = document.getElementById('sourceLang').value;
   state.settings.targetLang = document.getElementById('targetLang').value;
   state.settings.batchSize = parseInt(document.getElementById('batchSize').value, 10) || 10;
   state.settings.contextLines = parseInt(document.getElementById('contextLines').value, 10) || 0;
+  state.settings.batchDelay = parseInt(document.getElementById('batchDelay').value, 10) || 0;
   state.settings.saveKey = document.getElementById('saveKey').checked;
-  state.settings.customEndpoint = document.getElementById('customEndpoint').value;
-  state.settings.customModel = document.getElementById('customModel').value;
   saveSettings();
 }
 
-function updateModelSelect() {
-  const provider = state.settings.provider;
+function switchProviderTab(provider) {
+  if (state.settings.provider === provider) return;
+  readSettingsFromUI(); // save current tab values
+  state.settings.provider = provider;
+  // Auto-set recommended delay for the provider
   const provCfg = PROVIDERS[provider];
-  const sel = document.getElementById('model');
-  sel.innerHTML = '';
-  const models = provider === 'custom' ? [state.settings.customModel || 'custom-model'] : provCfg.models;
-  const currentModel = state.settings.model;
-  if (!models.includes(currentModel)) {
-    state.settings.model = provider === 'custom' ? (state.settings.customModel || '') : provCfg.defaultModel;
-  }
-  models.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m; opt.textContent = m;
-    if (m === state.settings.model) opt.selected = true;
-    sel.appendChild(opt);
-  });
+  state.settings.batchDelay = provCfg.defaultDelay;
+  applySettingsToUI();
   saveSettings();
+  updateRateInfo();
 }
 
-function updateCustomFields() {
-  const isCustom = state.settings.provider === 'custom';
-  document.getElementById('fieldCustomEndpoint').style.display = isCustom ? '' : 'none';
-  document.getElementById('fieldCustomModel').style.display = isCustom ? '' : 'none';
-  document.getElementById('fieldModel').style.display = isCustom ? 'none' : '';
+function updateRateInfo() {
+  const provCfg = PROVIDERS[state.settings.provider];
+  const el = document.getElementById('rateInfo');
+  if (el) el.textContent = provCfg.rateInfo || '';
 }
 
 // ─── Toast ──────────────────────────────────────────────────
@@ -562,23 +637,21 @@ function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
 }
 
 // ─── API Translation ────────────────────────────────────────
-async function translateBatch(texts, allSubsFlat, batchStartIdx) {
+async function translateBatch(texts, allSubsFlat, batchStartIdx, retryCount = 0) {
   const settings = state.settings;
   const provider = settings.provider;
   const provCfg = PROVIDERS[provider];
+  const apiKey = settings.providerKeys[provider];
+  const model = settings.providerModels[provider];
+  const MAX_RETRIES = 3;
 
-  if (!settings.apiKey) throw new Error('API key is required');
+  if (!apiKey) throw new Error(`API key is required for ${provCfg.name}`);
 
   let endpoint = provCfg.endpoint;
-  if (provider === 'custom') {
-    endpoint = settings.customEndpoint;
-    if (!endpoint) throw new Error('Custom endpoint URL is required');
-  }
   if (provider === 'google') {
-    endpoint = provCfg.buildEndpoint(settings.model, settings.apiKey);
+    endpoint = provCfg.buildEndpoint(model, apiKey);
   }
 
-  const model = provider === 'custom' ? settings.customModel : settings.model;
   if (!model && provider !== 'google') throw new Error('Model is required');
 
   const systemMsg = buildMoviePrompt(settings.sourceLang, settings.targetLang);
@@ -589,16 +662,11 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx) {
     { role: 'user', content: userMsg }
   ];
 
-  let body;
-  if (provider === 'google') {
-    body = provCfg.buildBody(model, messages);
-  } else {
-    body = provCfg.buildBody(model, messages);
-  }
+  const body = provCfg.buildBody(model, messages);
 
   const headers = {
     'Content-Type': 'application/json',
-    ...provCfg.authHeader(settings.apiKey)
+    ...provCfg.authHeader(apiKey)
   };
 
   const resp = await fetch(endpoint, {
@@ -617,6 +685,17 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx) {
     } catch {
       errMsg = errText;
     }
+
+    // Retry on rate limit (429) or server errors (5xx) with exponential backoff
+    if ((resp.status === 429 || resp.status >= 500) && retryCount < MAX_RETRIES) {
+      const delay = Math.pow(2, retryCount) * 2000; // 2s, 4s, 8s
+      const reason = resp.status === 429 ? 'rate limit' : 'server error';
+      document.getElementById('progressText').textContent =
+        `${reason} — retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})...`;
+      await sleep(delay);
+      return translateBatch(texts, allSubsFlat, batchStartIdx, retryCount + 1);
+    }
+
     throw new Error(`API error ${resp.status}: ${errMsg}`);
   }
 
@@ -640,11 +719,16 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx) {
   return translations.slice(0, texts.length);
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ─── Translation Engine ─────────────────────────────────────
 async function translateAllFiles() {
   if (state.isTranslating) return;
-  if (!state.settings.apiKey) {
-    showToast('Please enter your API key in settings', 'error');
+  const apiKey = state.settings.providerKeys[state.settings.provider];
+  if (!apiKey) {
+    showToast(`Please enter your ${PROVIDERS[state.settings.provider].name} API key`, 'error');
     return;
   }
 
@@ -700,6 +784,14 @@ async function translateAllFiles() {
       document.getElementById('progressFill').style.width = `${Math.round((completed / total) * 100)}%`;
       renderPreview();
       updateFileStatuses();
+
+      // Delay between batches (rate limit throttling)
+      if (state.settings.batchDelay > 0 && b < batches.length - 1) {
+        document.getElementById('progressText').textContent =
+          `Waiting ${state.settings.batchDelay / 1000}s before next batch...`;
+        await sleep(state.settings.batchDelay);
+        if (state.abortController && state.abortController.signal.aborted) break;
+      }
     }
 
     document.getElementById('progressText').textContent =
@@ -890,13 +982,20 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('settingsPanel').classList.toggle('open');
 });
 
-document.getElementById('provider').addEventListener('change', () => {
-  readSettingsFromUI();
-  updateModelSelect();
-  updateCustomFields();
+// Provider tabs
+document.querySelectorAll('.provider-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchProviderTab(tab.dataset.provider));
 });
 
-document.getElementById('model').addEventListener('change', () => readSettingsFromUI());
+// Provider-specific fields
+document.getElementById('modelDeepseek').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('apiKeyDeepseek').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('modelGoogle').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('apiKeyGoogle').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('modelOpenrouter').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('apiKeyOpenrouter').addEventListener('change', () => readSettingsFromUI());
+
+// Common fields
 document.getElementById('sourceLang').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('targetLang').addEventListener('change', () => {
   readSettingsFromUI();
@@ -904,10 +1003,8 @@ document.getElementById('targetLang').addEventListener('change', () => {
 });
 document.getElementById('batchSize').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('contextLines').addEventListener('change', () => readSettingsFromUI());
+document.getElementById('batchDelay').addEventListener('change', () => readSettingsFromUI());
 document.getElementById('saveKey').addEventListener('change', () => readSettingsFromUI());
-document.getElementById('apiKey').addEventListener('change', () => readSettingsFromUI());
-document.getElementById('customEndpoint').addEventListener('change', () => readSettingsFromUI());
-document.getElementById('customModel').addEventListener('change', () => readSettingsFromUI());
 
 document.getElementById('btnTranslate').addEventListener('click', translateAllFiles);
 document.getElementById('btnStop').addEventListener('click', stopTranslation);
@@ -944,6 +1041,7 @@ fileInput.addEventListener('change', () => {
 loadSettings();
 applySettingsToUI();
 updateExportHint();
+updateRateInfo();
 </script>
 </body>
 </html>
