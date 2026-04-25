@@ -283,7 +283,7 @@ footer { text-align: center; padding: 16px; color: var(--text2); font-size: 0.75
       </div>
       <div class="field">
         <label for="batchSize">Batch Size (subtitles per request)</label>
-        <input type="number" id="batchSize" value="50" min="1" max="500">
+        <input type="number" id="batchSize" value="10" min="1" max="500">
       </div>
       <div class="field">
         <label for="contextLines">Context Lines (surrounding lines for context)</label>
@@ -586,18 +586,26 @@ CRITICAL RULES:
 
 4. CULTURAL ADAPTATION: Translate idioms and cultural references naturally. If a joke or reference falls flat in the target language, find an equivalent that lands. Prioritize meaning and emotional impact over literal accuracy.
 
-5. CONSISTENCY: Use the same target-language term for recurring names, places, and concepts throughout. If context lines use a particular translation choice, match it.
+5. NATURAL FLOW IN ${tgtName}: Sound like a native speaker. Use natural phrasing, word order, and colloquialisms appropriate to the target language. Avoid literal, mechanical, or translationese output. For Persian (Farsi) specifically: prefer natural Persian word order (SOV), use common everyday vocabulary, choose plain Persian terms over Arabic-heavy alternatives where both are equally understood, and keep dialogue warm and conversational.
 
-6. NO ADDITIONS: Never add translator notes, explanations, bracketed commentary like [unclear] or (laughter). No markdown, no quotes, no HTML. Just the translated text.
+6. DIALOGUE DASHES: Lines starting with "- " indicate a speaker change. PRESERVE the "- " prefix in your translation. A subtitle entry may contain multiple "- " lines — that means multiple speakers in one subtitle. Keep them together in ONE output entry. Never split them into separate entries.
 
-7. OUTPUT FORMAT: Output ONLY the numbered translations, one per line, matching the "LINES TO TRANSLATE" numbering exactly. Do not translate or re-output the context lines.
+7. MULTI-LINE ENTRIES: Some subtitle entries span multiple lines. In the "LINES TO TRANSLATE" section, internal line breaks are shown as " ‹br› " marker. Translate the entire entry as ONE unit and keep the " ‹br› " markers where natural line breaks belong.
 
-8. MATCH COUNT: Output exactly the same number of translated lines as the "LINES TO TRANSLATE" section contains.`;
+8. CONSISTENCY: Use the same target-language term for recurring names, places, and concepts throughout. If context lines use a particular translation choice, match it.
+
+9. NO ADDITIONS: Never add translator notes, explanations, bracketed commentary like [unclear] or (laughter). No markdown, no quotes, no HTML. Just the translated text.
+
+10. OUTPUT FORMAT: Output ONLY the numbered translations, one per numbered line. Each numbered entry in "LINES TO TRANSLATE" produces EXACTLY ONE numbered output line — no more, no less. Never add new entries or timestamps. Do not translate or re-output the context lines.
+
+11. MATCH COUNT: Output exactly the same number of translated lines as the "LINES TO TRANSLATE" section contains. One output line per input entry — strictly one-to-one.`;
 }
 
 // ─── Build context-rich user message ────────────────────────
 function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
   const sections = [];
+
+  const norm = (str) => str.replace(/\n/g, ' ‹br› ');
 
   // Context BEFORE
   if (contextCount > 0 && batchStartIdx > 0) {
@@ -606,7 +614,7 @@ function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
     if (ctxLines.length > 0) {
       sections.push('CONTEXT BEFORE (for understanding — do NOT translate these):');
       ctxLines.forEach((s, i) => {
-        sections.push(`  [context] ${s.text}`);
+        sections.push(`  [context] ${norm(s.text)}`);
       });
       sections.push('');
     }
@@ -615,7 +623,8 @@ function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
   // Lines TO translate
   sections.push(`LINES TO TRANSLATE (${texts.length} lines):`);
   texts.forEach((t, i) => {
-    sections.push(`${i + 1}. ${t}`);
+    // Replace internal newlines with a visible marker so each entry is one line
+    sections.push(`${i + 1}. ${norm(t)}`);
   });
 
   // Context AFTER
@@ -627,7 +636,7 @@ function buildUserMessage(texts, allSubs, batchStartIdx, contextCount) {
       sections.push('');
       sections.push('CONTEXT AFTER (for understanding — do NOT translate these):');
       ctxLines.forEach(s => {
-        sections.push(`  [context] ${s.text}`);
+        sections.push(`  [context] ${norm(s.text)}`);
       });
     }
   }
@@ -703,13 +712,33 @@ async function translateBatch(texts, allSubsFlat, batchStartIdx, retryCount = 0)
   // Parse numbered output
   const lines = resultText.trim().split('\n').filter(l => l.trim());
   const translations = [];
+
   for (const line of lines) {
     const match = line.match(/^\d+[\.\)]\s*(.+)/);
     if (match) {
       translations.push(match[1].trim());
+    } else if (translations.length > 0) {
+      // Non-numbered line — it's a continuation of the previous translation
+      translations[translations.length - 1] += '\n' + line.trim();
     } else {
       translations.push(line.trim());
     }
+  }
+
+  // If the model outputs more entries than expected, merge extras into the last one
+  while (translations.length > texts.length) {
+    const last = translations.pop();
+    if (translations.length > 0) {
+      translations[translations.length - 1] += '\n' + last;
+    } else {
+      translations.push(last);
+      break;
+    }
+  }
+
+  // Restore ‹br› markers back to actual newlines
+  for (let i = 0; i < translations.length; i++) {
+    translations[i] = translations[i].replace(/ ‹br› /g, '\n');
   }
 
   // Ensure correct count
